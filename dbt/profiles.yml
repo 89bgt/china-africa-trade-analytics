@@ -1,0 +1,14 @@
+# Project-local profile (no secrets): auth uses Application Default Credentials from
+# `gcloud auth application-default login` with a personal Google account.
+# Always run dbt from this folder with `--profiles-dir .` so no global ~/.dbt profile is used.
+china_africa_trade:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID', 'china-africa-trade') }}"
+      dataset: analytics
+      location: "{{ env_var('BQ_LOCATION', 'EU') }}"
+      threads: 4
+      job_execution_timeout_seconds: 300

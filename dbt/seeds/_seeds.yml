@@ -1,0 +1,13 @@
+version: 2
+
+seeds:
+  - name: hs_chapters
+    description: HS 2-digit chapter names (UN Comtrade HS reference) mapped to the 21 HS sections.
+    columns:
+      - name: hs_chapter
+        data_tests: [unique, not_null]
+  - name: partners
+    description: Partner countries in scope, with UN M49 codes used by Comtrade.
+    columns:
+      - name: partner_code
+        data_tests: [unique, not_null]

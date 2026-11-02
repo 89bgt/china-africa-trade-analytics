@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: stg_comtrade__exports
+    description: Typed and renamed Comtrade export records, one row per partner, year and HS chapter.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [partner_code, year, hs_chapter]
+    columns:
+      - name: year
+        data_tests: [not_null]
+      - name: reporter_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [156]
+                quote: false
+      - name: partner_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('partners')
+                field: partner_code
+      - name: hs_chapter
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('hs_chapters')
+                field: hs_chapter
+      - name: export_value_usd
+        description: Export value in current USD.
+        data_tests: [not_null]

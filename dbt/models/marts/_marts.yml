@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: fct_exports_yearly
+    description: >
+      China's exports to each partner by HS chapter and year (dense: missing years are 0),
+      with YoY growth, share of the partner's total imports from China, and rank.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [partner_code, hs_chapter, year]
+    columns:
+      - name: export_value_usd
+        description: Export value, current USD.
+        data_tests: [not_null]
+      - name: yoy_growth
+        description: Growth vs previous year (null when the previous year was 0 or is the first year).
+      - name: share_of_partner_total
+        description: Chapter value / total China exports to that partner in that year.
+
+  - name: mart_chapter_growth
+    description: >
+      Start-year vs end-year value and CAGR per HS chapter, per partner and for all three partners
+      combined (partner_code = 0).
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [partner_code, hs_chapter]
+    columns:
+      - name: cagr
+        description: >
+          Compound annual growth rate between start_year and end_year. Null when the start-year
+          value is below var('min_base_value_usd') or the end-year value is 0.
+      - name: is_material_base
+        description: True when the start-year value is at least var('min_base_value_usd').
+
+  - name: mart_top_growing_chapters
+    description: Top var('top_n') chapters by CAGR per partner (and combined), material bases only.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [partner_code, growth_rank]
+    columns:
+      - name: growth_rank
+        data_tests: [not_null]
+
+  - name: mart_partner_concentration
+    description: Yearly totals and concentration of each partner's import basket from China.
+    data_tests:
+      - unique_combination:
+          arguments:
+            columns: [partner_code, year]
+    columns:
+      - name: hhi
+        description: Herfindahl-Hirschman index over HS chapter shares (0-10,000).
+      - name: top3_share
+        description: Share of the partner's total taken by its three largest chapters that year.
