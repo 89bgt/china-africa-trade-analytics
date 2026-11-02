@@ -32,11 +32,12 @@ About 2,800 rows: 3 partners × 11 years × 76–94 chapters with recorded trade
 ## Architecture
 
 ```
-UN Comtrade API ──► ingest/comtrade_to_bq.py ──► data/raw/*.json (local cache)
-                                              └─► BigQuery  comtrade_raw.comtrade_exports
+UN Comtrade API ──► ingest/comtrade_to_bq.py ──► BigQuery  comtrade_raw.comtrade_records
+                     (extract, then append)        raw JSON + extracted_at, append-only
                                                        │
                      dbt ─────────────────────────────┘
-                       staging       stg_comtrade__exports        typed, filtered to totals
+                       staging       stg_comtrade__exports        parse JSON, latest extraction
+                                                                  per partner-year, typed
                        intermediate  int_exports__chapter_year    dense partner × chapter × year grid
                        marts         fct_exports_yearly           values, YoY, share, rank
                                      mart_chapter_growth          start/end value, CAGR
@@ -49,6 +50,13 @@ UN Comtrade API ──► ingest/comtrade_to_bq.py ──► data/raw/*.json (lo
 
 ## Method
 
+- **Raw layer (ELT):** BigQuery is the record of the raw data. Each API record is stored untouched
+  as JSON with `extracted_at` and the request parameters. Every run *appends* instead of
+  overwriting, so Comtrade's revisions to past years are kept. Reloading the same extraction is
+  skipped, so re-runs stay idempotent. dbt parses the JSON and uses the latest extraction. The local
+  `data/raw/` folder is only a developer cache for reloading without calling the API. (Cloud
+  Storage would be the usual landing zone, but it needs billing; this setup runs in the free
+  BigQuery sandbox.)
 - **Values** are Comtrade's `primaryValue` (FOB, current USD), as reported by China.
 - **Dense grid:** a chapter with no record in a year is set to 0, so YoY and CAGR aren't skewed by gaps.
 - **CAGR** = (value 2025 / value 2015)^(1/10) − 1, per partner and for the three partners combined.
@@ -56,7 +64,7 @@ UN Comtrade API ──► ingest/comtrade_to_bq.py ──► data/raw/*.json (lo
   (`min_base_value_usd` var), so tiny bases don't produce misleading 1000%+ growth rates.
 - **Concentration** = Herfindahl-Hirschman index over chapter shares of each partner's yearly total
   (0–10,000), plus the share of the top 3 chapters.
-- Window, threshold and top-N are dbt vars in `dbt/dbt_project.yml`. `dbt build` runs 18 data tests
+- Window, threshold and top-N are dbt vars in `dbt/dbt_project.yml`. `dbt build` runs 19 data tests
   (uniqueness of grain, not-null, referential integrity to the seeds).
 
 ## Key findings (2015 → 2025)
@@ -89,7 +97,8 @@ UN Comtrade API ──► ingest/comtrade_to_bq.py ──► data/raw/*.json (lo
   (CIF vs FOB, transit via third countries, timing). A mirror comparison is a natural next step.
 - **HS revisions:** Comtrade reports 2015–16 in HS2012, 2017–21 in HS2017 and 2022+ in HS2022.
   The impact is small at the 2-digit level but not zero.
-- **2025** is the latest release and may still be revised.
+- **2025** is the latest release and may still be revised. Re-running the ingestion appends the
+  new figures, and older extractions stay in the raw table for comparison.
 - Current USD, not adjusted for inflation or exchange rates.
 - Endpoint CAGR is sensitive to unusual start or end years. Use the yearly series for context.
 
@@ -105,8 +114,8 @@ pip install -r requirements.txt
 # optional: point at your own project (defaults: china-africa-trade, EU)
 set GCP_PROJECT_ID=your-project-id
 
-python ingest/comtrade_to_bq.py --dry-run           # fetch to data/raw/ only (~33 API calls, ~2 min)
-python ingest/comtrade_to_bq.py --from-cache        # load cached JSON to BigQuery
+python ingest/comtrade_to_bq.py                     # extract (~33 API calls, ~2 min) + append to BigQuery
+# --dry-run: extract to data/raw/ only    --from-cache: load data/raw/ without calling the API
 
 cd dbt
 dbt build --profiles-dir .                          # seeds + models + tests
@@ -117,9 +126,9 @@ Dashboard design and queries: [docs/dashboard.md](docs/dashboard.md).
 ## Repository layout
 
 ```
-ingest/comtrade_to_bq.py   API extraction + BigQuery load
+ingest/comtrade_to_bq.py   API extraction + append-only BigQuery load
 dbt/                       dbt project (models, seeds, tests, project-local profile)
-data/raw/                  local JSON cache (git-ignored)
+data/raw/                  local developer cache of the last extraction (git-ignored)
 docs/                      setup guide, dashboard spec, screenshots
 ```
 

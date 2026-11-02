@@ -4,16 +4,24 @@ sources:
   - name: comtrade_raw
     database: "{{ env_var('GCP_PROJECT_ID', 'china-africa-trade') }}"
     schema: "{{ env_var('BQ_RAW_DATASET', 'comtrade_raw') }}"
-    description: Raw UN Comtrade records loaded by ingest/comtrade_to_bq.py (full refresh).
+    description: Raw UN Comtrade data loaded by ingest/comtrade_to_bq.py (append-only).
     tables:
-      - name: comtrade_exports
+      - name: comtrade_records
         description: >
           China (reporter 156) exports to Morocco, Senegal and Côte d'Ivoire by HS 2-digit chapter,
-          annual. One row per partner, year and chapter, as returned by the Comtrade preview API.
+          annual. One row per API record per extraction: every run appends, so Comtrade revisions
+          are kept and can be compared over time.
         columns:
-          - name: refYear
-            description: Reference year.
-          - name: cmdCode
-            description: HS 2-digit chapter code ("01".."99").
-          - name: primaryValue
-            description: Trade value in current USD (FOB for exports).
+          - name: extracted_at
+            description: When the record was fetched from the API.
+            data_tests: [not_null]
+          - name: loaded_at
+            description: When the load job appended it to BigQuery.
+          - name: request_params
+            description: API query parameters that produced the record (JSON).
+          - name: partner_code
+            description: Partner requested (UN M49 code).
+          - name: period
+            description: Year requested.
+          - name: record
+            description: The untouched API record (JSON). Parsed in stg_comtrade__exports.

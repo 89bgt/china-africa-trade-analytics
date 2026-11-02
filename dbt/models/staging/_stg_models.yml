@@ -2,7 +2,9 @@ version: 2
 
 models:
   - name: stg_comtrade__exports
-    description: Typed and renamed Comtrade export records, one row per partner, year and HS chapter.
+    description: >
+      Comtrade export records parsed from JSON, typed and renamed, latest extraction only.
+      One row per partner, year and HS chapter.
     data_tests:
       - unique_combination:
           arguments:
